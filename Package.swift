@@ -4,5 +4,8 @@ import PackageDescription
 let package = Package(
  name: "Solar",
  products: [.library(name: "Solar", targets: ["Solar"])],
- targets: [.target(name: "Solar")]
+ targets: [
+  .target(name: "Solar"),
+  .testTarget(name: "SolarTests", dependencies: ["Solar"])
+ ]
 )
