@@ -159,8 +159,11 @@ public extension Solar {
    let minute = floor((UT - hour) * 60.0)
    let second = (((UT - hour) * 60) - minute) * 60.0
 
-   let shouldBeYesterday = lngHour > 0 && UT > 12 && sunriseSunset == .sunrise
-   let shouldBeTomorrow = lngHour < 0 && UT < 12 && sunriseSunset == .sunset
+   let hoursPerCycle = Locale.current.hoursPerCycle
+   let shouldBeYesterday =
+    lngHour > 0 && UT > hoursPerCycle && sunriseSunset == .sunrise
+   let shouldBeTomorrow =
+    lngHour < 0 && UT < hoursPerCycle && sunriseSunset == .sunset
 
    let setDate: Date = if shouldBeYesterday {
     Date(timeInterval: -(60 * 60 * 24), since: date)
@@ -247,5 +250,38 @@ private extension Double {
 
  var radiansToDegrees: Double {
   (Double(self) * 180.0) / Double.pi
+ }
+}
+
+extension Locale {
+ @inline(__always)
+ var hoursPerCycle: Double {
+  #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
+  return if #available(macOS 13, iOS 16, tvOS 16, watchOS 9, *) {
+   switch self.hourCycle {
+   case .oneToTwelve, .zeroToEleven: 12
+   case .oneToTwentyFour, .zeroToTwentyThree: 24
+   @unknown default: 12
+   }
+  } else {
+   if
+    DateFormatter.dateFormat(
+     fromTemplate: "j", options: 0, locale: .current
+    )?.range(of: "a") != nil {
+    24
+   } else {
+    24
+   }
+  }
+  #else
+  return if
+   DateFormatter.dateFormat(
+    fromTemplate: "j", options: 0, locale: .current
+   )?.range(of: "a") != nil {
+   24
+  } else {
+   24
+  }
+  #endif
  }
 }
