@@ -3,33 +3,19 @@ import Foundation
 /// source: https://github.com/ceeK/Solar
 public extension Solar {
  struct PhasePredictions {
-  private let x: Double
-  private let y: Double
+  public let x: Double
+  public let y: Double
 
   /// The date to generate sunrise / sunset times for
-  public var date: Date {
-   didSet {
-    guard oldValue != date else { return }
-    reset()
-   }
-  }
+  public let date: Date
 
-  public private(set) var sunrise: Date?
-  public private(set) var sunset: Date?
-  public private(set) lazy var civilSunrise: Date? =
-   calculate(.sunrise, for: date, and: .civil)
-  public private(set) lazy var civilSunset: Date? =
-   calculate(.sunset, for: date, and: .civil)
-  public private(set) lazy var nauticalSunrise: Date? =
-   calculate(.sunrise, for: date, and: .nautical)
-  public private(set) lazy var nauticalSunset: Date? =
-   calculate(.sunset, for: date, and: .nautical)
-  public private(set) lazy var astronomicalSunrise: Date? =
-   calculate(.sunrise, for: date, and: .astronimical)
-  public private(set) lazy var astronomicalSunset: Date? =
-   calculate(.sunset, for: date, and: .astronimical)
+  public let sunrise: Date
+  public let sunset: Date
 
-  public init(for date: Date = Date(), x: Double, y: Double) {
+  public init?(
+   for date: Date = Date(), x: Double, y: Double,
+   with zenith: Zenith = .official
+  ) {
    self.date = date
 
    assert(
@@ -37,17 +23,21 @@ public extension Solar {
     "coordinates for \(#function) must be valid"
    )
 
+   guard
+    let sunrise =
+    Self.calculate(.sunrise, for: date, x: x, y: y, with: zenith),
+    let sunset =
+    Self.calculate(.sunset, for: date, x: x, y: y, with: zenith)
+   else {
+    return nil
+   }
    self.x = x
    self.y = y
-   sunrise = calculate(.sunrise, for: date, and: .official)
-   sunset = calculate(.sunset, for: date, and: .official)
+   self.sunrise = sunrise
+   self.sunset = sunset
   }
 
   public var isDaytime: Bool {
-   guard let sunrise, let sunset else {
-    return false
-   }
-
    let beginningOfDay = sunrise.timeIntervalSince1970
    let endOfDay = sunset.timeIntervalSince1970
    let currentTime = date.timeIntervalSince1970
@@ -60,27 +50,29 @@ public extension Solar {
 
   public var isNighttime: Bool { !isDaytime }
 
-  fileprivate enum SunriseSunset {
+  public enum SunriseSunset {
    case sunrise
    case sunset
   }
 
   /// Used for generating several of the possible sunrise / sunset times
-  fileprivate enum Zenith: Double {
+  public enum Zenith: Double {
    case official = 90.83
    case civil = 96
    case nautical = 102
    case astronimical = 108
   }
 
-  private func calculate(
+  public static func calculate(
    _ sunriseSunset: SunriseSunset,
    for date: Date,
-   and zenith: Zenith
+   x: Double, y: Double,
+   with zenith: Zenith
   ) -> Date? {
    guard let utcTimezone = TimeZone(identifier: "UTC") else { return nil }
    // Get the day of the year
    var calendar = Calendar(identifier: .gregorian)
+   calendar.timeZone = utcTimezone
 
    guard let dayInt = calendar.ordinality(of: .day, in: .year, for: date)
    else { return nil }
@@ -159,16 +151,15 @@ public extension Solar {
    let minute = floor((UT - hour) * 60.0)
    let second = (((UT - hour) * 60) - minute) * 60.0
 
-   let hoursPerCycle = Locale.current.hoursPerCycle
    let shouldBeYesterday =
-    lngHour > 0 && UT > hoursPerCycle && sunriseSunset == .sunrise
+    lngHour > 0 && UT > 12 && sunriseSunset == .sunrise
    let shouldBeTomorrow =
-    lngHour < 0 && UT < hoursPerCycle && sunriseSunset == .sunset
+    lngHour < 0 && UT < 12 && sunriseSunset == .sunset
 
    let setDate: Date = if shouldBeYesterday {
-    Date(timeInterval: -(60 * 60 * 24), since: date)
+    Date(timeInterval: -86400, since: date)
    } else if shouldBeTomorrow {
-    Date(timeInterval: 60 * 60 * 24, since: date)
+    Date(timeInterval: 86400, since: date)
    } else {
     date
    }
@@ -181,38 +172,14 @@ public extension Solar {
    components.minute = Int(minute)
    components.second = Int(second)
 
-   calendar.timeZone = utcTimezone
+//   calendar.timeZone = utcTimezone
 
    return calendar.date(from: components)
-  }
-  
-  private mutating func reset() {
-   sunrise = calculate(.sunrise, for: date, and: .official)
-   sunset = calculate(.sunset, for: date, and: .official)
-   
-   if civilSunrise != nil {
-    civilSunrise = calculate(.sunrise, for: date, and: .civil)
-   }
-   if civilSunset != nil {
-    civilSunset = calculate(.sunset, for: date, and: .civil)
-   }
-   if nauticalSunrise != nil {
-    nauticalSunrise = calculate(.sunrise, for: date, and: .nautical)
-   }
-   if nauticalSunset != nil {
-    nauticalSunset = calculate(.sunset, for: date, and: .nautical)
-   }
-   if astronomicalSunrise != nil {
-    astronomicalSunrise = calculate(.sunrise, for: date, and: .astronimical)
-   }
-   if astronomicalSunset != nil {
-    astronomicalSunset = calculate(.sunset, for: date, and: .astronimical)
-   }
   }
 
   /// Normalises a value between 0 and `maximum`, by adding or subtracting
   /// `maximum`
-  private func normalise(
+  static func normalise(
    _ value: Double,
    withMaximum maximum: Double
   ) -> Double {
@@ -237,8 +204,17 @@ public typealias PhasePredictions = Solar.PhasePredictions
 import struct CoreLocation.CLLocationCoordinate2D
 
 public extension Solar.PhasePredictions {
- init(for date: Date = Date(), location: CLLocationCoordinate2D) {
-  self.init(for: date, x: location.latitude, y: location.longitude)
+ init?(
+  for date: Date = Date(),
+  location: CLLocationCoordinate2D,
+  with zenith: Zenith = .official
+ ) {
+  self.init(
+   for: date,
+   x: location.latitude,
+   y: location.longitude,
+   with: zenith
+  )
  }
 }
 #endif
@@ -250,38 +226,5 @@ private extension Double {
 
  var radiansToDegrees: Double {
   (Double(self) * 180.0) / Double.pi
- }
-}
-
-extension Locale {
- @inline(__always)
- var hoursPerCycle: Double {
-  #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
-  return if #available(macOS 13, iOS 16, tvOS 16, watchOS 9, *) {
-   switch self.hourCycle {
-   case .oneToTwelve, .zeroToEleven: 12
-   case .oneToTwentyFour, .zeroToTwentyThree: 24
-   @unknown default: 12
-   }
-  } else {
-   if
-    DateFormatter.dateFormat(
-     fromTemplate: "j", options: 0, locale: .current
-    )?.range(of: "a") != nil {
-    24
-   } else {
-    24
-   }
-  }
-  #else
-  return if
-   DateFormatter.dateFormat(
-    fromTemplate: "j", options: 0, locale: .current
-   )?.range(of: "a") != nil {
-   24
-  } else {
-   24
-  }
-  #endif
  }
 }
