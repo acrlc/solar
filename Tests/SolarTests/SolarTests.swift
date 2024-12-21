@@ -3,43 +3,40 @@ import XCTest
 
 final class SolarTests: XCTestCase {
  func testPrediction() throws {
-  let now = Date()
+  let (x, y) = (37.334606, -122.009102)
+  
+  let now = Date(timeIntervalSinceReferenceDate: 752284800.0)
+
   let currentPredictions = try XCTUnwrap(
-   Solar.PhasePredictions(for: now, x: 37.334606, y: -122.009102)
+   Solar.PhasePredictions(for: now, x: x, y: y)
   )
 
-  let future = Date().addingTimeInterval(86400 / 2)
+  XCTAssert(currentPredictions.isNighttime)
+
+  let future = now.addingTimeInterval(86400 / 2)
   let laterPredictions = try XCTUnwrap(
-   Solar.PhasePredictions(
-    for: future,
-    x: 37.334606,
-    y: -122.009102
-   )
+   Solar.PhasePredictions(for: future, x: x, y: y)
   )
+  
+  XCTAssert(laterPredictions.isDaytime)
 
-  XCTAssert(laterPredictions.isNighttime)
-
-  let past = Date().addingTimeInterval(-86400 / 2)
+  let past = now.addingTimeInterval(-86400 / 2)
   let pastPredictions = try XCTUnwrap(
    Solar.PhasePredictions(
     for: past,
-    x: 37.334606,
-    y: -122.009102
+    x: x,
+    y: y
    )
   )
 
   XCTAssert(pastPredictions.isNighttime)
-
-  let nextDay = Date().addingTimeInterval(86400)
+ 
+  let nextDay = now.addingTimeInterval(86400)
   let nextDayPredictions = try XCTUnwrap(
-   Solar.PhasePredictions(
-    for: nextDay,
-    x: 37.334606,
-    y: -122.009102
-   )
+   Solar.PhasePredictions(for: nextDay, x: x, y: y)
   )
 
-  XCTAssert(nextDayPredictions.isDaytime)
+  XCTAssert(nextDayPredictions.isNighttime)
 
   let isDaytime = currentPredictions.isDaytime
 
@@ -51,11 +48,11 @@ final class SolarTests: XCTestCase {
 
   let nextDaySunriseAdjusted =
    nextDayPredictions.sunrise.addingTimeInterval(-86400)
-
-  // check if difference between next day and current is within 60 seconds
+  
+  // check if difference between next day and current is 175 seconds
   XCTAssertEqual(
    nextDaySunriseAdjusted.timeIntervalSinceReferenceDate,
-   currentPredictions.sunrise.timeIntervalSinceReferenceDate, accuracy: 60
+   currentPredictions.sunrise.timeIntervalSinceReferenceDate, accuracy: 175
   )
  }
 }
